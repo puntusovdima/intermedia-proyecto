@@ -1,0 +1,17 @@
+{
+  "name": "intermedia-proyecto",
+  "version": "1.0.0",
+  "description": "BildyApp Backend REST API",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file=.env src/index.js",
+    "start": "node --env-file=.env src/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "mongoose": "^9.4.1"
+  }
+}
