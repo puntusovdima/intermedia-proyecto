@@ -1,12 +1,15 @@
 import express from 'express';
 import { errorHandler } from './middleware/error-handler.js';
 import AppError from './utils/AppError.js';
+// import UserRouter from './routes/user.routes.js';
 
 // Initialize the Express app
 const app = express();
 
 // Middleware to parse incoming JSON payload
 app.use(express.json());
+
+// app.use('/api/user', UserRouter);
 
 // A simple test route to verify everything is working
 app.get('/api/ping', (req, res) => {
@@ -23,7 +26,7 @@ app.get('/api/test-error', (req, res, next) => {
 });
 
 // Route catch-all for undefined endpoints
-app.all('*', (req, res, next) => {
+app.all('*any', (req, res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
