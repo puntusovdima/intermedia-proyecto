@@ -1,7 +1,7 @@
 import express from 'express';
 import { errorHandler } from './middleware/error-handler.js';
 import AppError from './utils/AppError.js';
-// import UserRouter from './routes/user.routes.js';
+import UserRouter from './routes/user.routes.js';
 
 // Initialize the Express app
 const app = express();
@@ -9,7 +9,7 @@ const app = express();
 // Middleware to parse incoming JSON payload
 app.use(express.json());
 
-// app.use('/api/user', UserRouter);
+app.use('/api/user', UserRouter);
 
 // A simple test route to verify everything is working
 app.get('/api/ping', (req, res) => {
