@@ -14,7 +14,7 @@ export const personalDataSchema = z.object({
  */
 export const companySchema = z.object({
     name: z.string().min(1, 'Company name is required').trim(),
-    cif: z.string().min(1, 'CIF is required').trim().toUpperCase(),
+    cif: z.string().trim().toUpperCase().optional(),
     address: z.object({
         street: z.string().optional(),
         number: z.string().optional(),
@@ -23,4 +23,13 @@ export const companySchema = z.object({
         province: z.string().optional()
     }),
     isFreelance: z.boolean().default(false)
+}).refine(data => {
+    // If not freelance, CIF MUST be provided
+    if (!data.isFreelance && !data.cif) {
+        return false;
+    }
+    return true;
+}, {
+    message: "CIF is required for non-freelance companies",
+    path: ["cif"]
 });

@@ -53,7 +53,7 @@ export const register = async (req, res, next) => {
     } catch (error) {
         // If Zod throws a validation error, we format it nicely
         if (error.name === 'ZodError') {
-            return next(new AppError(error.errors[0].message, 400));
+            return next(new AppError(error.issues[0].message, 400));
         }
         next(error);
     }
@@ -98,7 +98,7 @@ export const validateEmail = async (req, res, next) => {
 
         res.status(200).json({ status: 'success', message: 'Email validated successfully!' });
     } catch (error) {
-        if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        if (error.name === 'ZodError') return next(new AppError(error.issues[0].message, 400));
         next(error);
     }
 };
@@ -139,7 +139,7 @@ export const login = async (req, res, next) => {
             }
         });
     } catch (error) {
-        if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        if (error.name === 'ZodError') return next(new AppError(error.issues[0].message, 400));
         next(error);
     }
 };
@@ -152,7 +152,7 @@ export const updatePersonalData = async (req, res, next) => {
         const user = await User.findByIdAndUpdate(
             req.user.id,
             { ...validatedData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
 
         if (!user) throw new AppError('User not found.', 404);
@@ -162,7 +162,7 @@ export const updatePersonalData = async (req, res, next) => {
             data: { user }
         });
     } catch (error) {
-        if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        if (error.name === 'ZodError') return next(new AppError(error.issues[0].message, 400));
         next(error);
     }
 };
@@ -227,7 +227,7 @@ export const updateCompany = async (req, res, next) => {
             }
         });
     } catch (error) {
-        if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        if (error.name === 'ZodError') return next(new AppError(error.issues[0].message, 400));
         next(error);
     }
 };

@@ -17,13 +17,17 @@ export const protect = (req, res, next) => {
     }
 
     try {
+        // Trim secret to avoid any hidden newline/space issues from .env
+        const secret = ACCESS_SECRET.trim();
+        
         // Verification step
-        const decoded = jwt.verify(token, ACCESS_SECRET);
+        const decoded = jwt.verify(token, secret);
         
         // We attach the extracted payload (which includes our userId as `id`) to the request object
         req.user = decoded; 
         next();
     } catch (error) {
+        console.error(`[Auth Middleware] JWT Verification Failed: ${error.message}`);
         return next(new AppError('Invalid token or token has expired.', 401));
     }
 };
