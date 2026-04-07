@@ -12,24 +12,33 @@ export const personalDataSchema = z.object({
 /**
  * Validation schema for associating a company (Point 4).
  */
-export const companySchema = z.object({
+/**
+ * Base schema for company data shared between freelance and standard companies.
+ */
+const companyBaseSchema = z.object({
     name: z.string().min(1, 'Company name is required').trim(),
-    cif: z.string().trim().toUpperCase().optional(),
     address: z.object({
         street: z.string().optional(),
         number: z.string().optional(),
         postal: z.string().optional(),
         city: z.string().optional(),
         province: z.string().optional()
-    }),
-    isFreelance: z.boolean().default(false)
-}).refine(data => {
-    // If not freelance, CIF MUST be provided
-    if (!data.isFreelance && !data.cif) {
-        return false;
-    }
-    return true;
-}, {
-    message: "CIF is required for non-freelance companies",
-    path: ["cif"]
+    })
 });
+
+/**
+ * Validation schema for associating a company (Point 4).
+ * Uses a discriminatedUnion to enforce CIF only when isFreelance is false.
+ */
+export const companySchema = z.discriminatedUnion('isFreelance', [
+    // Case: Freelancer (isFreelance = true)
+    companyBaseSchema.extend({
+        isFreelance: z.literal(true),
+        cif: z.string().trim().toUpperCase().optional() // CIF is optional as it defaults to User's NIF
+    }),
+    // Case: Standard Company (isFreelance = false)
+    companyBaseSchema.extend({
+        isFreelance: z.literal(false),
+        cif: z.string().min(1, 'CIF is required for non-freelance companies').trim().toUpperCase()
+    })
+]);

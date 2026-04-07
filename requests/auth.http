@@ -2,7 +2,7 @@
 @email = tester@test.com
 @password = Password123!
 # This code will be shown in the server logs after registration
-@verificationCode = 264737
+@verificationCode = 177225
 
 ### 1. Register a new user
 # @name register
@@ -78,6 +78,7 @@ Authorization: Bearer {{profileToken}}
 
 {
   "name": "Big Build Corp",
+  "cif": "B12345678",
   "address": {
     "street": "Avenida de la Construcción",
     "number": "500",
@@ -102,3 +103,56 @@ Content-Type: image/png
 
 < ./logo.png
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 7. Get Current User (Point 6)
+# @name getCurrentUser
+GET {{baseUrl}}/user/
+Authorization: Bearer {{loginToken}}
+
+### 8. Refresh Token (Point 7)
+# @name refreshToken
+@refToken = {{login.response.body.data.refreshToken}}
+
+POST {{baseUrl}}/user/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refToken}}"
+}
+
+### 9. Change Password (Point 9)
+# @name changePassword
+PUT {{baseUrl}}/user/password
+Authorization: Bearer {{loginToken}}
+Content-Type: application/json
+
+{
+  "oldPassword": "{{password}}",
+  "newPassword": "NewSecurePassword123!"
+}
+
+### 10. Invite Peer (Point 10 - Admin Only)
+# @name invitePeer
+POST {{baseUrl}}/user/invite
+Authorization: Bearer {{loginToken}}
+Content-Type: application/json
+
+{
+  "email": "colleague@test.com"
+}
+
+### 11a. Soft Delete User (Point 8)
+# @name deleteUserSoft
+DELETE {{baseUrl}}/user/?soft=true
+Authorization: Bearer {{loginToken}}
+
+### 11b. Hard Delete User (Point 8)
+# @name deleteUserHard
+DELETE {{baseUrl}}/user/
+Authorization: Bearer {{loginToken}}
+
+### 12. Logout (Point 7)
+# @name logout
+POST {{baseUrl}}/user/logout
+Authorization: Bearer {{loginToken}}
+

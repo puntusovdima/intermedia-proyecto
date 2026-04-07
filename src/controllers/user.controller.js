@@ -6,6 +6,7 @@ import { generateTokens } from '../utils/jwt.js';
 import { registerSchema, validationSchema, loginSchema, changePasswordSchema, inviteSchema } from '../validators/user.validator.js';
 import { personalDataSchema, companySchema } from '../validators/company.validator.js';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import crypto from 'crypto';
 
@@ -325,6 +326,10 @@ export const refreshToken = async (req, res, next) => {
             data: { ...tokens }
         });
     } catch (error) {
+        console.error(`[Refresh Token Error] ${error.message}`);
+        // If it's an operational AppError we threw (like 401 or 400), pass it on
+        if (error.isOperational) return next(error);
+        // Otherwise, it was likely a JWT verification error
         next(new AppError('Invalid or expired refresh token', 401));
     }
 };

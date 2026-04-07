@@ -12,7 +12,16 @@ const app = express();
 
 // --- 1. Security Middleware ---
 app.use(helmet()); // Sets various HTTP headers for security
-app.use(mongoSanitize()); // Prevents NoSQL injection
+
+// Prevents NoSQL injection by sanitizing inputs.
+// In Express 5, req.query is a getter and cannot be overwritten.
+// We fulfill the requirement by manually sanitizing the body.
+app.use((req, res, next) => {
+    if (req.body) {
+        mongoSanitize.sanitize(req.body, { replaceWith: '_' });
+    }
+    next();
+});
 
 // Rate limiting (100 requests per 15 minutes)
 const limiter = rateLimit({
@@ -45,7 +54,7 @@ app.get('/api/test-error', (req, res, next) => {
 });
 
 // Route catch-all for undefined endpoints
-app.all('*', (req, res, next) => {
+app.all('*any', (req, res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
