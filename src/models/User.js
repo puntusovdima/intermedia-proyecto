@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-
+import bcrypt from 'bcryptjs';
 /**
  * User Schema definition.
  * Represents all application users (admins and guests).
@@ -12,7 +12,8 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: true
+        required: true,
+        select: false // Prevents the password from being returned in standard queries
     },
     name: String,
     lastName: String,
@@ -78,6 +79,22 @@ userSchema.virtual('fullName').get(function() {
     }
     return ''; 
 });
+
+userSchema.pre('save', async function(next) {
+    // Check if the password has been modified, if not, skip hashing
+    if (!this.isModified('password')) {
+        return next();
+    }
+
+    try {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (error) {
+        // Pass any error to the next middleware
+        next(error);
+    }
+})
 
 const User = mongoose.model('User', userSchema);
 export default User;
