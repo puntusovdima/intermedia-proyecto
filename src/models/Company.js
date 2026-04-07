@@ -17,7 +17,8 @@ const companySchema = new mongoose.Schema({
     },
     cif: {
         type: String,
-        required: true
+        required: true,
+        unique: true
     },
     // Inline address sub-document for simplicity
     address: {
