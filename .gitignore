@@ -15,7 +15,6 @@ coverage/
 # Documentation & Planning
 intermedia.md
 PHASES.md
-*.http
 
 # Local IDE
 .vscode/
