@@ -78,7 +78,6 @@ Authorization: Bearer {{profileToken}}
 
 {
   "name": "Big Build Corp",
-  "cif": "B87654321",
   "address": {
     "street": "Avenida de la Construcción",
     "number": "500",

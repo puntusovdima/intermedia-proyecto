@@ -38,6 +38,12 @@ const userSchema = new mongoose.Schema({
         default: 3
     },
     
+    // Stores the current refresh token for session invalidation (Point 7)
+    refreshToken: {
+        type: String,
+        select: false // Not needed in typical client responses
+    },
+
     // Reference to the company this user belongs to
     company: {
         type: mongoose.Schema.Types.ObjectId,

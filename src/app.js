@@ -3,11 +3,26 @@ import { errorHandler } from './middleware/error-handler.js';
 import AppError from './utils/AppError.js';
 import UserRouter from './routes/user.routes.js';
 import path from 'path';
+import helmet from 'helmet';
+import mongoSanitize from 'express-mongo-sanitize';
+import { rateLimit } from 'express-rate-limit';
 
 // Initialize the Express app
 const app = express();
 
-// Middleware to parse incoming JSON payload
+// --- 1. Security Middleware ---
+app.use(helmet()); // Sets various HTTP headers for security
+app.use(mongoSanitize()); // Prevents NoSQL injection
+
+// Rate limiting (100 requests per 15 minutes)
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests from this IP, please try again in 15 minutes'
+});
+app.use('/api', limiter);
+
+// --- 2. Standard Middleware ---
 app.use(express.json());
 
 app.use('/api/user', UserRouter);
@@ -30,7 +45,7 @@ app.get('/api/test-error', (req, res, next) => {
 });
 
 // Route catch-all for undefined endpoints
-app.all('*any', (req, res, next) => {
+app.all('*', (req, res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 

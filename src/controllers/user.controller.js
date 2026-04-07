@@ -3,10 +3,11 @@ import Company from '../models/Company.js';
 import AppError from '../utils/AppError.js';
 import notificationService from '../services/notification.service.js';
 import { generateTokens } from '../utils/jwt.js';
-import { registerSchema, validationSchema, loginSchema } from '../validators/user.validator.js';
+import { registerSchema, validationSchema, loginSchema, changePasswordSchema, inviteSchema } from '../validators/user.validator.js';
 import { personalDataSchema, companySchema } from '../validators/company.validator.js';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
+import crypto from 'crypto';
 
 // --- POINT 1: Register ---
 export const register = async (req, res, next) => {
@@ -37,6 +38,10 @@ export const register = async (req, res, next) => {
 
         // 6. Generate Tokens
         const tokens = generateTokens(newUser._id);
+        
+        // 7. Store refresh token for invalidation (Point 7)
+        newUser.refreshToken = tokens.refreshToken;
+        await newUser.save();
 
         res.status(201).json({
             status: 'success',
@@ -123,8 +128,17 @@ export const login = async (req, res, next) => {
             throw new AppError('Invalid email or password.', 401);
         }
 
+        // --- SOFT DELETE CHECK ---
+        if (user.deleted) {
+            throw new AppError('This account has been deactivated.', 403);
+        }
+
         // Generate new set of tokens
         const tokens = generateTokens(user._id);
+
+        // Update refresh token in DB
+        user.refreshToken = tokens.refreshToken;
+        await user.save();
 
         res.status(200).json({
             status: 'success',
@@ -133,6 +147,7 @@ export const login = async (req, res, next) => {
                     email: user.email,
                     role: user.role,
                     status: user.status,
+                    fullName: user.fullName, // Now we have fullName virtual
                     _id: user._id
                 },
                 ...tokens
@@ -263,6 +278,152 @@ export const uploadLogo = async (req, res, next) => {
             data: { company }
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+// --- POINT 6: Get User (Populated) ---
+export const getUser = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user.id).populate('company');
+        if (!user) throw new AppError('User not found.', 404);
+
+        res.status(200).json({
+            status: 'success',
+            data: { user }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// --- POINT 7: Refresh & Logout ---
+export const refreshToken = async (req, res, next) => {
+    try {
+        const { refreshToken: incomingToken } = req.body;
+        if (!incomingToken) throw new AppError('Refresh token is required', 400);
+
+        // 1. Verify token
+        const secret = (process.env.JWT_REFRESH_SECRET || 'super_secret_refresh_key').trim();
+        const decoded = jwt.verify(incomingToken, secret);
+
+        // 2. Check if it matches what's in the DB
+        const user = await User.findById(decoded.id).select('+refreshToken');
+        if (!user || user.refreshToken !== incomingToken) {
+            throw new AppError('Invalid or expired refresh token', 401);
+        }
+
+        // 3. Issue new access token
+        const tokens = generateTokens(user._id);
+
+        // 4. Update the stored refresh token (Rotation)
+        user.refreshToken = tokens.refreshToken;
+        await user.save();
+
+        res.status(200).json({
+            status: 'success',
+            data: { ...tokens }
+        });
+    } catch (error) {
+        next(new AppError('Invalid or expired refresh token', 401));
+    }
+};
+
+export const logout = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) throw new AppError('User not found.', 404);
+
+        // Invalidate token in DB
+        user.refreshToken = undefined;
+        await user.save();
+
+        res.status(200).json({ status: 'success', message: 'Logged out successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// --- POINT 8: Delete User (Hard/Soft) ---
+export const deleteUser = async (req, res, next) => {
+    try {
+        const isSoft = req.query.soft === 'true';
+
+        if (isSoft) {
+            const user = await User.findByIdAndUpdate(req.user.id, { deleted: true }, { new: true });
+            if (!user) throw new AppError('User not found.', 404);
+        } else {
+            await User.findByIdAndDelete(req.user.id);
+        }
+
+        notificationService.emit('user:deleted', req.user.id);
+
+        res.status(200).json({ status: 'success', message: 'User deleted successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// --- POINT 9: Change Password ---
+export const changePassword = async (req, res, next) => {
+    try {
+        const validatedData = changePasswordSchema.parse(req.body);
+
+        const user = await User.findById(req.user.id).select('+password');
+        if (!user) throw new AppError('User not found.', 404);
+
+        // Verify old password
+        const isCorrect = await bcrypt.compare(validatedData.oldPassword, user.password);
+        if (!isCorrect) throw new AppError('Current password is incorrect', 401);
+
+        // Update password (triggering .pre('save') hashing)
+        user.password = validatedData.newPassword;
+        await user.save();
+
+        res.status(200).json({ status: 'success', message: 'Password updated successfully' });
+    } catch (error) {
+        if (error.name === 'ZodError') return next(new AppError(error.issues[0].message, 400));
+        next(error);
+    }
+};
+
+// --- POINT 10: Invite Peers (Admin Only) ---
+export const inviteUser = async (req, res, next) => {
+    try {
+        const validatedData = inviteSchema.parse(req.body);
+
+        // Admin's own data to link company
+        const admin = await User.findById(req.user.id);
+        if (!admin || !admin.company) throw new AppError('Admin must have a company associated to invite.', 400);
+
+        const existing = await User.findOne({ email: validatedData.email });
+        if (existing) throw new AppError('User already exists in system.', 409);
+
+        // Generate random temporary password
+        const tempPassword = crypto.randomBytes(8).toString('hex');
+
+        // Create Guest User linked to same company
+        const invitedUser = await User.create({
+            email: validatedData.email,
+            password: tempPassword,
+            company: admin.company,
+            role: 'guest',
+            status: 'pending' 
+        });
+
+        notificationService.emit('user:invited', invitedUser.email);
+        console.log(`[Phase 4] Invited user ${invitedUser.email} with temp password: ${tempPassword}`);
+
+        res.status(201).json({
+            status: 'success',
+            data: { 
+                email: invitedUser.email,
+                role: invitedUser.role,
+                company: invitedUser.company
+            }
+        });
+    } catch (error) {
+        if (error.name === 'ZodError') return next(new AppError(error.issues[0].message, 400));
         next(error);
     }
 };
