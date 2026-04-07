@@ -1,9 +1,12 @@
 import User from '../models/User.js';
+import Company from '../models/Company.js';
 import AppError from '../utils/AppError.js';
 import notificationService from '../services/notification.service.js';
 import { generateTokens } from '../utils/jwt.js';
 import { registerSchema, validationSchema, loginSchema } from '../validators/user.validator.js';
+import { personalDataSchema, companySchema } from '../validators/company.validator.js';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
 
 // --- POINT 1: Register ---
 export const register = async (req, res, next) => {
@@ -137,6 +140,129 @@ export const login = async (req, res, next) => {
         });
     } catch (error) {
         if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        next(error);
+    }
+};
+
+// --- POINT 4: Update Personal Data ---
+export const updatePersonalData = async (req, res, next) => {
+    try {
+        const validatedData = personalDataSchema.parse(req.body);
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            { ...validatedData },
+            { new: true, runValidators: true }
+        );
+
+        if (!user) throw new AppError('User not found.', 404);
+
+        res.status(200).json({
+            status: 'success',
+            data: { user }
+        });
+    } catch (error) {
+        if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        next(error);
+    }
+};
+
+// --- POINT 4: Update Company ---
+export const updateCompany = async (req, res, next) => {
+    try {
+        const validatedData = companySchema.parse(req.body);
+        const user = await User.findById(req.user.id);
+        if (!user) throw new AppError('User not found.', 404);
+
+        let company;
+
+        if (validatedData.isFreelance) {
+            // Freelancer Logic: CIF = NIF
+            // Requirements: "Si es autónomo, el CIF de la compañía será su propio NIF"
+            company = await Company.findOne({ cif: user.nif });
+            
+            if (company) {
+                company.name = validatedData.name;
+                company.address = validatedData.address;
+                company.isFreelance = true;
+                await company.save();
+            } else {
+                company = await Company.create({
+                    owner: user._id,
+                    name: validatedData.name,
+                    cif: user.nif,
+                    address: validatedData.address,
+                    isFreelance: true
+                });
+            }
+            user.role = 'admin';
+        } else {
+            // Standard Company Logic
+            company = await Company.findOne({ cif: validatedData.cif });
+
+            if (company) {
+                // Join existing company
+                user.role = 'guest';
+            } else {
+                // Create new standard company
+                company = await Company.create({
+                    owner: user._id,
+                    name: validatedData.name,
+                    cif: validatedData.cif,
+                    address: validatedData.address,
+                    isFreelance: false
+                });
+                user.role = 'admin';
+            }
+        }
+
+        user.company = company._id;
+        await user.save();
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                user,
+                company
+            }
+        });
+    } catch (error) {
+        if (error.name === 'ZodError') return next(new AppError(error.errors[0].message, 400));
+        next(error);
+    }
+};
+
+// --- POINT 5: Upload Logo ---
+export const uploadLogo = async (req, res, next) => {
+    try {
+        if (!req.file) throw new AppError('No logo file uploaded.', 400);
+
+        const user = await User.findById(req.user.id);
+        if (!user || !user.company) {
+            if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            throw new AppError('Company not associated with user.', 400);
+        }
+
+        const company = await Company.findById(user.company);
+        if (!company) throw new AppError('Company not found.', 404);
+
+        // Delete OLD logo if it exists for cleanup
+        if (company.logo) {
+            const oldPath = company.logo.split('/').pop();
+            const fullOldPath = `uploads/${oldPath}`;
+            if (fs.existsSync(fullOldPath)) {
+                fs.unlinkSync(fullOldPath);
+            }
+        }
+
+        company.logo = `/uploads/${req.file.filename}`;
+        await company.save();
+
+        res.status(200).json({
+            status: 'success',
+            data: { company }
+        });
+    } catch (error) {
         next(error);
     }
 };

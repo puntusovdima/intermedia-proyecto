@@ -2,6 +2,7 @@ import express from 'express';
 import { errorHandler } from './middleware/error-handler.js';
 import AppError from './utils/AppError.js';
 import UserRouter from './routes/user.routes.js';
+import path from 'path';
 
 // Initialize the Express app
 const app = express();
@@ -10,6 +11,9 @@ const app = express();
 app.use(express.json());
 
 app.use('/api/user', UserRouter);
+
+// Serve logos statically from the uploads folder
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // A simple test route to verify everything is working
 app.get('/api/ping', (req, res) => {

@@ -1,0 +1,36 @@
+@baseUrl = http://localhost:3000/api
+@email = test@example.com
+@password = Password123!
+@code = 123456
+
+### 1. Register a new user
+# @name register
+POST {{baseUrl}}/user/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### 2. Login
+# @name login
+POST {{baseUrl}}/user/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### 3. Validate Email (Requires authentication)
+# @name validateEmail
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{baseUrl}}/user/validation
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "code": "{{code}}"
+}

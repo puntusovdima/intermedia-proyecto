@@ -80,21 +80,15 @@ userSchema.virtual('fullName').get(function() {
     return ''; 
 });
 
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
     // Check if the password has been modified, if not, skip hashing
     if (!this.isModified('password')) {
-        return next();
+        return;
     }
 
-    try {
-        const salt = await bcrypt.genSalt(10);
-        this.password = await bcrypt.hash(this.password, salt);
-        next();
-    } catch (error) {
-        // Pass any error to the next middleware
-        next(error);
-    }
-})
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+});
 
 const User = mongoose.model('User', userSchema);
 export default User;
